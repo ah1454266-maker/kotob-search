@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>بحث الكتب</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --bg: #17181a;
+    --card: #22242a;
+    --card2: #2b2e35;
+    --gold: #d4a941;
+    --gold-soft: #e8c46a;
+    --text: #f0ede6;
+    --muted: #9a968c;
+    --red: #d96a5f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0 14px;
+  }
+  header.top h1 { font-size: 22px; color: var(--gold); }
+  header.top .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .card {
+    background: var(--card);
+    border: 1px solid #33363e;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-size: 15px;
+    background: var(--gold);
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+  button.ghost { background: var(--card2); color: var(--text); }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type="text"], input[type="password"], input[type="file"] {
+    font-family: inherit;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #3a3d45;
+    background: var(--card2);
+    color: var(--text);
+    font-size: 16px;
+  }
+  input:focus { outline: 2px solid var(--gold); }
+  .searchrow { display: flex; gap: 8px; }
+  .bookrow {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 4px; border-bottom: 1px solid #33363e;
+  }
+  .bookrow:last-child { border-bottom: none; }
+  .bookrow .t { font-size: 16px; }
+  .bookrow .m { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .bookrow button.del { background: none; color: var(--red); padding: 6px 10px; font-size: 13px; }
+  .muted { color: var(--muted); font-size: 13px; line-height: 1.7; }
+  .progress-outer { background: var(--card2); border-radius: 8px; height: 10px; margin-top: 10px; overflow: hidden; }
+  .progress-inner { background: var(--gold); height: 100%; width: 0%; transition: width .2s; }
+  .result {
+    background: var(--card);
+    border: 1px solid #33363e;
+    border-radius: 12px;
+    padding: 13px 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .result:hover { border-color: var(--gold); }
+  .result .bt { color: var(--gold-soft); font-size: 13px; margin-bottom: 6px; }
+  .result .sn { font-size: 15px; line-height: 1.9; }
+  mark { background: var(--gold); color: #1a1a1a; border-radius: 3px; padding: 0 2px; }
+  .viewer-text { white-space: pre-wrap; line-height: 2; font-size: 16px; }
+  .viewer-img { width: 100%; border-radius: 10px; background: #fff; }
+  .viewgrid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 720px) {
+    .viewgrid.hasimg { grid-template-columns: 1fr 1fr; }
+  }
+  .hidden { display: none !important; }
+  .center { text-align: center; }
+  #passGate { max-width: 420px; margin: 12vh auto 0; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabs button { flex: 1; background: var(--card2); color: var(--muted); }
+  .tabs button.on { background: var(--gold); color: #1a1a1a; }
+  .backlink { color: var(--gold); cursor: pointer; font-size: 14px; margin-bottom: 10px; display: inline-block; }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid var(--muted); border-top-color: var(--gold); border-radius:50%; animation: sp 1s linear infinite; vertical-align: middle; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="wrap hidden" id="app">
+  <header class="top">
+    <div>
+      <h1>بحث الكتب 📚</h1>
+      <div class="sub">ارفع كتبك ودوّر فيهم كلهم بكلمة واحدة</div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button id="tabSearch" class="on">🔎 بحث</button>
+    <button id="tabLib">📖 مكتبتي</button>
+  </div>
+
+  <div id="viewSearch">
+    <div class="card">
+      <div class="searchrow">
+        <input type="text" id="q" placeholder="اكتب كلمة أو موضوع… مثال: الشهادة" autocomplete="off">
+      </div>
+      <div class="muted" style="margin-top:8px">البحث بيتحمّل الغلطات الصغيرة في قراءة الصور، وبيدور في كل الكتب اللي رفعتها.</div>
+    </div>
+    <div id="searchStatus" class="muted" style="margin:6px 2px"></div>
+    <div id="results"></div>
+  </div>
+
+  <div id="viewLib" class="hidden">
+    <div class="card">
+      <button id="addBtn">➕ أضف كتاب (PDF أو صور)</button>
+      <input type="file" id="fileInput" class="hidden" accept="application/pdf,image/*" multiple>
+      <div id="upStatus" class="muted" style="margin-top:10px"></div>
+      <div class="progress-outer hidden" id="progOuter"><div class="progress-inner" id="progInner"></div></div>
+      <div class="muted" style="margin-top:10px">القراءة بتتم على جهازك، والنص بس هو اللي بيتخزن. الصفحات الورقية المصوّرة بتتقري تلقائيًا.</div>
+    </div>
+    <div class="card" id="bookList"><div class="muted">لسه مفيش كتب.</div></div>
+  </div>
+
+  <div id="viewPage" class="hidden">
+    <span class="backlink" id="backToResults">‹ رجوع للنتائج</span>
+    <div class="card">
+      <div id="pageHead" style="color:var(--gold-soft); font-size:14px; margin-bottom:10px"></div>
+      <div class="viewgrid" id="pageGrid">
+        <div><div class="viewer-text" id="pageText"></div></div>
+        <div id="pageImgWrap"><img class="viewer-img" id="pageImg" alt="صفحة الكتاب"><canvas id="pageCanvas" class="viewer-img hidden"></canvas></div>
+      </div>
+      <div class="muted hidden" id="noImgNote" style="margin-top:10px">الصورة الأصلية للصفحة مش على الجهاز ده، فبيظهر النص بس.</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="passGate">
+  <div class="card center">
+    <h1 style="color:var(--gold); font-size:20px; margin-bottom:12px">بحث الكتب 📚</h1>
+    <p class="muted" style="margin-bottom:14px">اكتب الرقم السري بتاعك</p>
+    <input type="password" id="passInput" inputmode="text" placeholder="الرقم السري">
+    <div style="height:12px"></div>
+    <button id="passBtn" style="width:100%">دخول</button>
+    <div id="passErr" class="muted" style="color:var(--red); margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const API_URL = 'https://kotob-search-ahmed.onrender.com';
+
+// ---------- normalization (keep in sync with server.js) ----------
+function normalizeArabic(s) {
+  return (s || '')
+    .replace(/[ً-ْٰـ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[^ء-غف-ي٠-٩a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+// ---------- helpers ----------
+const $ = (id) => document.getElementById(id);
+function passcode() { return localStorage.getItem('ks_pass') || ''; }
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ 'x-passcode': passcode() }, opts.headers || {});
+  if (opts.body && typeof opts.body !== 'string') {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(API_URL + path, opts);
+      if (res.status === 401) { throw Object.assign(new Error('unauthorized'), { auth: true }); }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      if (e.auth) throw e;
+      lastErr = e;
+      await new Promise(r => setTimeout(r, 4000 * (attempt + 1))); // Render cold start
+    }
+  }
+  throw lastErr;
+}
+
+// ---------- IndexedDB for original files ----------
+let db;
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('kotob', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files', { keyPath: 'bookId' });
+    r.onsuccess = () => { db = r.result; resolve(); };
+    r.onerror = () => reject(r.error);
+  });
+}
+function saveFile(bookId, name, type, blob) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('files', 'readwrite');
+    tx.objectStore('files').put({ bookId, name, type, blob });
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function loadFile(bookId) {
+  return new Promise((resolve) => {
+    const tx = db.transaction('files', 'readonly');
+    const r = tx.objectStore('files').get(bookId);
+    r.onsuccess = () => resolve(r.result || null);
+    r.onerror = () => resolve(null);
+  });
+}
+
+// ---------- passcode gate ----------
+async function tryPass(code) {
+  $('passErr').textContent = '';
+  try {
+    const res = await fetch(API_URL + '/api/health', { headers: { 'x-passcode': code } });
+    if (res.ok) {
+      localStorage.setItem('ks_pass', code);
+      $('passGate').classList.add('hidden');
+      $('app').classList.remove('hidden');
+      await openDb();
+      loadBooks();
+    } else {
+      $('passErr').textContent = 'الرقم السري غلط، جرّب تاني.';
+    }
+  } catch (e) {
+    $('passErr').textContent = 'الخادم بيصحى (أول تشغيل بياخد دقيقة)… جرّب تاني بعد شوية.';
+  }
+}
+$('passBtn').onclick = () => tryPass($('passInput').value.trim());
+$('passInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryPass($('passInput').value.trim()); });
+if (passcode()) {
+  $('passGate').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  openDb().then(loadBooks);
+}
+
+// ---------- tabs ----------
+function showView(v) {
+  $('viewSearch').classList.toggle('hidden', v !== 'search');
+  $('viewLib').classList.toggle('hidden', v !== 'lib');
+  $('viewPage').classList.toggle('hidden', v !== 'page');
+  $('tabSearch').classList.toggle('on', v === 'search');
+  $('tabLib').classList.toggle('on', v === 'lib');
+}
+$('tabSearch').onclick = () => showView('search');
+$('tabLib').onclick = () => { showView('lib'); loadBooks(); };
+
+// ---------- library ----------
+async function loadBooks() {
+  try {
+    const d = await api('/api/books');
+    const el = $('bookList');
+    if (!d.books.length) { el.innerHTML = '<div class="muted">لسه مفيش كتب. دوس "أضف كتاب" وابدأ.</div>'; return; }
+    el.innerHTML = '';
+    for (const b of d.books) {
+      const row = document.createElement('div');
+      row.className = 'bookrow';
+      const info = document.createElement('div');
+      const t = document.createElement('div'); t.className = 't'; t.textContent = b.title;
+      const m = document.createElement('div'); m.className = 'm'; m.textContent = b.pages + ' صفحة';
+      info.appendChild(t); info.appendChild(m);
+      const del = document.createElement('button');
+      del.className = 'del'; del.textContent = 'مسح';
+      del.onclick = async () => {
+        if (!confirm('تمسح الكتاب ده ونصه؟')) return;
+        await api('/api/books/' + b.id, { method: 'DELETE' });
+        loadBooks();
+      };
+      row.appendChild(info); row.appendChild(del);
+      el.appendChild(row);
+    }
+  } catch (e) {
+    $('bookList').innerHTML = '<div class="muted">مش قادر أوصل للخادم دلوقتي. لو أول تشغيل، استنى دقيقة وحدّث الصفحة.</div>';
+  }
+}
+
+// ---------- upload & extract ----------
+$('addBtn').onclick = () => {
+  const title = prompt('اسم الكتاب؟');
+  if (title === null) return;
+  $('fileInput').dataset.title = title.trim();
+  $('fileInput').click();
+};
+$('fileInput').onchange = (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (files.length) processBook($('fileInput').dataset.title || files[0].name.replace(/\.[^.]+$/, ''), files);
+};
+
+let ocrWorker = null;
+async function getOcrWorker(statusCb) {
+  if (ocrWorker) return ocrWorker;
+  statusCb('بيجهّز قارئ الصور (أول مرة بس)…');
+  ocrWorker = await Tesseract.createWorker(['ara', 'eng']);
+  return ocrWorker;
+}
+
+async function ocrImage(imageSource, statusCb) {
+  const w = await getOcrWorker(statusCb);
+  const { data } = await w.recognize(imageSource);
+  return data.text || '';
+}
+
+async function extractPdf(file, onPage) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const out = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    onPage(i, pdf.numPages);
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    let text = tc.items.map((it) => it.str).join(' ').trim();
+    if (text.replace(/\s/g, '').length < 20) {
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      text = await ocrImage(canvas, () => {});
+    }
+    out.push({ page: i, text });
+  }
+  return out;
+}
+
+async function processBook(title, files) {
+  const st = $('upStatus'), po = $('progOuter'), pi = $('progInner');
+  $('addBtn').disabled = true;
+  po.classList.remove('hidden');
+  try {
+    st.textContent = 'بينشئ الكتاب…';
+    const { book } = await api('/api/books', { method: 'POST', body: { title } });
+    let pages = [];
+    let done = 0, total = 0;
+    const pdfs = files.filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    const imgs = files.filter((f) => !pdfs.includes(f)).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    total = imgs.length;
+    for (const f of pdfs) {
+      st.textContent = 'بيقرأ PDF: ' + f.name;
+      const extracted = await extractPdf(f, (i, n) => { st.textContent = `بيقرأ صفحة ${i} من ${n}…`; pi.style.width = Math.round((i / n) * 90) + '%'; });
+      pages = pages.concat(extracted);
+      await saveFile(book.id, f.name, 'pdf', f);
+    }
+    let pno = pages.length;
+    for (const f of imgs) {
+      done++;
+      st.textContent = `بيقرأ صورة ${done} من ${total}…`;
+      pi.style.width = Math.round((done / total) * 90) + '%';
+      const text = await ocrImage(f, (m) => { st.textContent = m; });
+      pages.push({ page: ++pno, text });
+    }
+    if (imgs.length === 1 && files.length === 1) await saveFile(book.id, files[0].name, 'image', files[0]);
+    else if (imgs.length > 1) await saveFile(book.id, imgs[0].name, 'images', files[0]);
+
+    st.textContent = 'بيخزّن النص…';
+    for (let i = 0; i < pages.length; i += 50) {
+      await api('/api/books/' + book.id + '/pages', { method: 'POST', body: { pages: pages.slice(i, i + 50) } });
+    }
+    pi.style.width = '100%';
+    st.textContent = 'تمام ✅ الكتاب اتضاف: ' + pages.length + ' صفحة. جرّب تدور فيه.';
+    loadBooks();
+  } catch (e) {
+    console.error(e);
+    st.textContent = 'حصلت مشكلة أثناء الرفع. لو النت ضعيف أو أول تشغيل للخادم، جرّب تاني.';
+  } finally {
+    $('addBtn').disabled = false;
+    setTimeout(() => po.classList.add('hidden'), 4000);
+  }
+}
+
+// ---------- search ----------
+let searchTimer = null;
+let lastResults = [];
+$('q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 450);
+});
+$('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(searchTimer); runSearch(); } });
+
+async function runSearch() {
+  const q = $('q').value.trim();
+  const el = $('results'), st = $('searchStatus');
+  if (!q) { el.innerHTML = ''; st.textContent = ''; return; }
+  st.innerHTML = '<span class="spin"></span> بيدوّر…';
+  try {
+    const d = await api('/api/search?q=' + encodeURIComponent(q));
+    lastResults = d.results;
+    if (!d.results.length) { st.textContent = 'مفيش نتائج لـ "' + q + '" في كتبك.'; el.innerHTML = ''; return; }
+    st.textContent = d.results.length + ' نتيجة';
+    el.innerHTML = '';
+    d.results.forEach((r, idx) => {
+      const div = document.createElement('div');
+      div.className = 'result';
+      const bt = document.createElement('div'); bt.className = 'bt';
+      bt.textContent = '📕 ' + r.title + ' — صفحة ' + r.page;
+      const sn = document.createElement('div'); sn.className = 'sn';
+      sn.innerHTML = makeSnippet(r.text, q);
+      div.appendChild(bt); div.appendChild(sn);
+      div.onclick = () => openPage(idx);
+      el.appendChild(div);
+    });
+  } catch (e) {
+    st.textContent = 'الخادم مش رادّي. لو أول تشغيل استنى دقيقة وجرّب تاني.';
+  }
+}
+
+function makeSnippet(text, q) {
+  const norm = normalizeArabic(text);
+  const nq = normalizeArabic(q);
+  let pos = nq ? norm.indexOf(nq) : -1;
+  let start = 0;
+  if (pos >= 0) {
+    const ratio = text.length / Math.max(1, norm.length);
+    start = Math.max(0, Math.floor(pos * ratio) - 70);
+  }
+  let snip = (start > 0 ? '…' : '') + text.substr(start, 260) + (start + 260 < text.length ? '…' : '');
+  const words = normalizeArabic(q).split(' ').filter((w) => w.length > 1);
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  snip = esc(snip);
+  for (const w of words.slice(0, 4)) {
+    if (snip.includes(w)) snip = snip.split(w).join('<mark>' + w + '</mark>');
+  }
+  return snip;
+}
+
+// ---------- page viewer ----------
+let currentPdf = null;
+async function openPage(idx) {
+  const r = lastResults[idx];
+  if (!r) return;
+  showView('page');
+  $('pageHead').textContent = '📕 ' + r.title + ' — صفحة ' + r.page;
+  $('pageText').innerHTML = makeSnippetFull(r.text);
+  const wrap = $('pageImgWrap');
+  const img = $('pageImg'), canvas = $('pageCanvas');
+  $('pageGrid').classList.remove('hasimg');
+  $('noImgNote').classList.add('hidden');
+  wrap.classList.add('hidden');
+  const f = await loadFile(r.book_id);
+  if (f && f.blob) {
+    if (f.type === 'pdf') {
+      try {
+        const buf = await f.blob.arrayBuffer();
+        currentPdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        const page = await currentPdf.getPage(Math.min(r.page, currentPdf.numPages));
+        const viewport = page.getViewport({ scale: 2 });
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        canvas.classList.remove('hidden'); img.classList.add('hidden');
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        wrap.classList.remove('hidden');
+        $('pageGrid').classList.add('hasimg');
+      } catch (e) { $('noImgNote').classList.remove('hidden'); }
+    } else {
+      img.src = URL.createObjectURL(f.blob);
+      img.classList.remove('hidden'); canvas.classList.add('hidden');
+      wrap.classList.remove('hidden');
+      $('pageGrid').classList.add('hasimg');
+    }
+  } else {
+    $('noImgNote').classList.remove('hidden');
+  }
+}
+function makeSnippetFull(text) {
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let t = esc(text);
+  const words = normalizeArabic($('q').value).split(' ').filter((w) => w.length > 1);
+  for (const w of words.slice(0, 4)) {
+    if (t.includes(w)) t = t.split(w).join('<mark>' + w + '</mark>');
+  }
+  return t;
+}
+$('backToResults').onclick = () => showView('search');
+</script>
+</body>
+</html>
