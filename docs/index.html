@@ -125,6 +125,10 @@
       </div>
       <div class="muted" style="margin-top:8px">البحث بيتحمّل الغلطات الصغيرة في قراءة الصور، وبيدور في كل الكتب اللي رفعتها.</div>
     </div>
+    <div class="card center">
+      <button id="addBtn2" style="width:100%; font-size:17px; padding:14px">➕ أضف كتاب جديد</button>
+      <div class="muted" style="margin-top:8px">PDF أو صور صفحات — والقراءة بتتم على جهازك</div>
+    </div>
     <div id="searchStatus" class="muted" style="margin:6px 2px"></div>
     <div id="results"></div>
   </div>
@@ -305,12 +309,14 @@ async function loadBooks() {
 }
 
 // ---------- upload & extract ----------
-$('addBtn').onclick = () => {
+const askAddBook = () => {
   const title = prompt('اسم الكتاب؟');
   if (title === null) return;
   $('fileInput').dataset.title = title.trim();
   $('fileInput').click();
 };
+$('addBtn').onclick = askAddBook;
+$('addBtn2').onclick = askAddBook;
 $('fileInput').onchange = (e) => {
   const files = Array.from(e.target.files || []);
   e.target.value = '';
@@ -356,6 +362,8 @@ async function extractPdf(file, onPage) {
 async function processBook(title, files) {
   const st = $('upStatus'), po = $('progOuter'), pi = $('progInner');
   $('addBtn').disabled = true;
+  $('addBtn2').disabled = true;
+  showView('lib');
   po.classList.remove('hidden');
   try {
     st.textContent = 'بينشئ الكتاب…';
@@ -388,12 +396,14 @@ async function processBook(title, files) {
     }
     pi.style.width = '100%';
     st.textContent = 'تمام ✅ الكتاب اتضاف: ' + pages.length + ' صفحة. جرّب تدور فيه.';
+    showView('lib');
     loadBooks();
   } catch (e) {
     console.error(e);
     st.textContent = 'حصلت مشكلة أثناء الرفع. لو النت ضعيف أو أول تشغيل للخادم، جرّب تاني.';
   } finally {
     $('addBtn').disabled = false;
+    $('addBtn2').disabled = false;
     setTimeout(() => po.classList.add('hidden'), 4000);
   }
 }
