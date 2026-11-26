@@ -293,7 +293,7 @@ async function loadBooks() {
       del.className = 'del'; del.textContent = 'مسح';
       del.onclick = async () => {
         if (!confirm('تمسح الكتاب ده ونصه؟')) return;
-        await api('/api/books/' + b.id, { method: 'DELETE' });
+        await api('/api/book?id=' + b.id, { method: 'DELETE' });
         loadBooks();
       };
       row.appendChild(info); row.appendChild(del);
@@ -384,7 +384,7 @@ async function processBook(title, files) {
 
     st.textContent = 'بيخزّن النص…';
     for (let i = 0; i < pages.length; i += 50) {
-      await api('/api/books/' + book.id + '/pages', { method: 'POST', body: { pages: pages.slice(i, i + 50) } });
+      await api('/api/pages?book=' + book.id, { method: 'POST', body: { pages: pages.slice(i, i + 50) } });
     }
     pi.style.width = '100%';
     st.textContent = 'تمام ✅ الكتاب اتضاف: ' + pages.length + ' صفحة. جرّب تدور فيه.';
