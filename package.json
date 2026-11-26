@@ -1,0 +1,16 @@
+{
+  "name": "kotob-search",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal Arabic book search: upload PDFs and scanned pages, search across all of them.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
